@@ -1,0 +1,211 @@
+name: "zugriff"
+description: "Deploy your application with zugriff"
+
+branding:
+  icon: upload-cloud
+  color: white
+
+inputs:
+  cwd:
+    description: 'Change current working directory (e.g. "./my-app/")'
+    required: false
+    type: string
+  function:
+    description: 'Function entry file (e.g. "./src/server.js")'
+    required: false
+    type: string
+  deploymentToken:
+    description: "Token to deploy and manage applications"
+    required: true
+    type: string
+  assets:
+    description: 'Newline-separated locations of static asset(-s) to include (e.g. "assets")'
+    required: false
+    type: string
+  promotions:
+    description: 'Newline-separated domain accociated labels (e.g. "production")'
+    required: false
+  name:
+    description: "Deployment name"
+    required: false
+    type: string
+  description:
+    description: "Deployment description"
+    required: false
+    type: string
+  dryRun:
+    description: "Deployment is created but not uploaded"
+    required: false
+    type: boolean
+  disableDefaultIndexHTMLRedirect:
+    description: 'Default: If no function is found, redirect rules for "index.x?html?" files are created (e.g. "/" -308-> "/index.html")'
+    required: false
+    type: boolean
+  redirects:
+    description: 'Newline-separated Redirect Middleware (e.g. "/:308:/index.html" or "/:/index.html")'
+    required: false
+  puppets:
+    description: 'Newline-separated Asset Alias Middleware (e.g. "/:/index.html")'
+    required: false
+  pack:
+    description: "Pack a Next.js or custom application"
+    required: false
+  environmentDeploymentApi:
+    description: "Self-hosted: Specify API endpoint"
+    required: false
+    type: string
+  environmentGeneralPurposeApi:
+    description: "Self-hosted: Specify API endpoint"
+    required: false
+    type: string
+  environmentWsGeneralPurposeApi:
+    description: "Self-hosted: Specify API endpoint"
+    required: false
+    type: string
+
+outputs:
+  domains:
+    description: "Connected domains"
+    value: ${{ steps.postprocess.outputs.domains }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+
+    - name: Install Dependencies
+      shell: bash
+      run: |
+        npm i -g esbuild@0
+        npm i -g zugriff@1
+
+    - name: Compose Command
+      uses: actions/github-script@v7
+      id: preprocess
+      with:
+        script: |
+          const fs = require('node:fs');
+          let { 
+            GITHUB_OUTPUT, FUNCTION, ASSETS, PROMOTIONS, NAME,
+            DESCRIPTION, DRYRUN, CWD, DISABLEDEFAULTINDEXHTMLREDIRECT,
+            REDIRECTS, PUPPETS, PACK
+          } = process.env;
+
+          function processMultiLine(value) {
+            let tmp = [];
+            const regex = /\s*(.*)\n*/gm;
+            for (let match of value.match(regex).filter((value) => value.trim() != "")) {
+              tmp.push(match.trim());
+            }
+            
+            return tmp;
+          }
+
+          let command = "deploy";
+
+          if (CWD.length > 0) {
+            command += " --cwd " + CWD.trim();
+          }
+
+          if (FUNCTION.length > 0) {
+            command += " --function " + FUNCTION.trim();
+          }
+
+          if (NAME.length > 0) {
+            command += ' --name "' + NAME.trim().replace(/([\$\`\\\"])/g, "\\$1") + '"';
+          }
+
+          if (DESCRIPTION.length > 0) {
+            command += " --description '" + DESCRIPTION.trim().replace(/([\$\`\\\"])/g, "\\$1") + "'";
+          }
+
+          if (DRYRUN.toLowerCase() == "true") {
+            command += " --dryRun";
+          }
+
+          if (DISABLEDEFAULTINDEXHTMLREDIRECT.toLowerCase() == "true") {
+            command += " --disableDefaultIndexHTMLRedirect";
+          }
+
+          if (PACK.toLowerCase() == "true") {
+            command += " --pack";
+          }
+
+          for (let redirect of processMultiLine(REDIRECTS)) {
+            command += " --redirect " + redirect;
+          }
+
+          for (let puppet of processMultiLine(PUPPETS)) {
+            command += " --puppet " + puppet;
+          }
+
+          for (let asset of processMultiLine(ASSETS)) {
+            command += " --asset " + asset;
+          }
+
+          for (let promotion of processMultiLine(PROMOTIONS)) {
+            command += " --promotion " + promotion;
+          }
+
+          fs.appendFileSync(GITHUB_OUTPUT, "\n" + "subcommand_composition=" + command + "\n");
+      env:
+        FUNCTION: ${{ inputs.function }}
+        ASSETS: ${{ inputs.assets }}
+        PROMOTIONS: ${{ inputs.promotions }}
+        NAME: ${{ inputs.name }}
+        DESCRIPTION: ${{ inputs.description }}
+        DRYRUN: ${{ inputs.dryRun }}
+        DISABLEDEFAULTINDEXHTMLREDIRECT: ${{ inputs.disableDefaultIndexHTMLRedirect }}
+        REDIRECTS: ${{ inputs.redirects }}
+        PUPPETS: ${{ inputs.puppets }}
+        CWD: ${{ inputs.cwd }}
+        PACK: ${{ inputs.pack }}
+
+    - name: Deploy
+      id: deploy
+      shell: bash
+      run: |
+        if [ "$X_DEPLOYMENT_TOKEN" != "" ]; then
+          export ZUGRIFF_CLI_DEPLOYMENT_TOKEN="$X_DEPLOYMENT_TOKEN"
+        fi
+        if [ "$X_DEPLOYMENT_API" != "" ]; then
+          export ZUGRIFF_CLI_DEPLOYMENT_API="$X_DEPLOYMENT_API"
+        fi
+        if [ "$X_GENERAL_PURPOSE_API" != "" ]; then
+          export ZUGRIFF_CLI_GENERAL_PURPOSE_API="$X_GENERAL_PURPOSE_API"
+        fi
+        if [ "$X_WS_GENERAL_PURPOSE_API" != "" ]; then
+          export ZUGRIFF_CLI_WS_GENERAL_PURPOSE_API="$X_WS_GENERAL_PURPOSE_API"
+        fi
+
+        EOV=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+        echo "\nresult<<$EOV" >> $GITHUB_OUTPUT
+        echo >(zugriff -y ${{ steps.preprocess.outputs.subcommand_composition }}) | tee -a $GITHUB_OUTPUT
+        echo "$EOV" >> $GITHUB_OUTPUT
+      env:
+        X_DEPLOYMENT_TOKEN: ${{ inputs.deploymentToken }}
+        X_DEPLOYMENT_API: ${{ inputs.environmentDeploymentApi }}
+        X_GENERAL_PURPOSE_API: ${{ inputs.environmentGeneralPurposeApi }}
+        X_WS_GENERAL_PURPOSE_API: ${{ inputs.environmentWsGeneralPurposeApi }}
+
+    - name: Post-process
+      uses: actions/github-script@v7
+      id: postprocess
+      with:
+        script: |
+          const fs = require('node:fs');
+
+          let {
+            RESULT, GITHUB_OUTPUT
+          } = process.env;
+
+          const regex = /(?:https?:\/\/)((?:\S*\.)+\S{2,})\s*/gm;
+
+          let domains = ((RESULT || "").match(regex) || []).join(",");
+
+          fs.appendFileSync(GITHUB_OUTPUT, "\n" + "domains=" + domains + "\n");
+      env:
+        RESULT: ${{ steps.deploy.outputs.result }}
