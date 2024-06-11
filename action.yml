@@ -38,7 +38,27 @@ inputs:
     required: false
     type: boolean
   disableDefaultIndexHTMLRedirect:
-    description: 'Default: If no function is found, redirect rules for "index.x?html?" files are created (e.g. "/" -308-> "/index.html")'
+    description: '[DEPRECATED: use --disableStaticRouter] Default: If no function is found, redirect rules for "index.x?html?" files are created (e.g. "/" -308-> "/index.html")'
+    required: false
+    type: boolean
+  disableStaticRouter:
+    description: "Disables the auto-router for static-only deployments"
+    required: false
+    type: boolean
+  enableStaticRouter:
+    description: "Enables the auto-router for deployments with functions"
+    required: false
+    type: boolean
+  preferFileRouter:
+    description: 'Prefer file based routing (e.g. "/index.html" -> "/:index.html", "/about.html" -> "/about:about.html")'
+    required: false
+    type: boolean
+  preferPuppets:
+    description: 'If no functions are found, instead of redirect rules for "index.x?html?" files, puppets are created (e.g. "/" -> "/index.html")'
+    required: false
+    type: boolean
+  disableFunctionDiscovery:
+    description: "Disable function discovery"
     required: false
     type: boolean
   redirects:
@@ -50,6 +70,10 @@ inputs:
   pack:
     description: "Pack a Next.js or custom application"
     required: false
+  interceptors:
+    description: 'Newline-separated interceptors (e.g. "404:/404.html" or "404:POST:/404.html")'
+    required: false
+    type: string
   environmentDeploymentApi:
     description: "Self-hosted: Specify API endpoint"
     required: false
@@ -91,7 +115,9 @@ runs:
           let { 
             GITHUB_OUTPUT, FUNCTION, ASSETS, PROMOTIONS, NAME,
             DESCRIPTION, DRYRUN, CWD, DISABLEDEFAULTINDEXHTMLREDIRECT,
-            REDIRECTS, PUPPETS, PACK
+            REDIRECTS, PUPPETS, PACK, DISABLESTATICROUTER, 
+            ENABLESTATICROUTER, PREFERFILEROUTER, PREFERPUPPETS,
+            DISABLEFUNCTIONDISCOVERY, INTERCEPTORS
           } = process.env;
 
           function processMultiLine(value) {
@@ -147,7 +173,31 @@ runs:
           }
 
           for (let promotion of processMultiLine(PROMOTIONS)) {
-            command += " --promotion " + promotion;
+            command += " --promote " + promotion;
+          }
+
+          if (DISABLESTATICROUTER.toLowerCase() == "true") {
+            command += " --disableStaticRouter";
+          }
+
+          if (ENABLESTATICROUTER.toLowerCase() == "true") {
+            command += " --enableStaticRouter";
+          }
+
+          if (PREFERFILEROUTER.toLowerCase() == "true") {
+            command += " --preferFileRouter";
+          }
+
+          if (PREFERPUPPETS.toLowerCase() == "true") {
+            command += " --preferPuppets";
+          }
+
+          if (DISABLEFUNCTIONDISCOVERY.toLowerCase() == "true") {
+            command += " --disableFunctionDiscovery";
+          }
+
+          for (let interceptor of processMultiLine(INTERCEPTORS)) {
+            command += " --intercept " + interceptor;
           }
 
           fs.appendFileSync(GITHUB_OUTPUT, "\n" + "subcommand_composition=" + command + "\n");
@@ -163,6 +213,12 @@ runs:
         PUPPETS: ${{ inputs.puppets }}
         CWD: ${{ inputs.cwd }}
         PACK: ${{ inputs.pack }}
+        DISABLESTATICROUTER: ${{ inputs.disableStaticRouter }}
+        ENABLESTATICROUTER: ${{ inputs.enableStaticRouter }}
+        PREFERFILEROUTER: ${{ inputs.preferFileRouter }}
+        PREFERPUPPETS: ${{ inputs.preferPuppets }}
+        DISABLEFUNCTIONDISCOVERY: ${{ inputs.disableFunctionDiscovery }}
+        INTERCEPTORS: ${{ inputs.interceptors }}
 
     - name: Deploy
       id: deploy
