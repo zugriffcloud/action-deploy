@@ -238,9 +238,7 @@ runs:
         fi
 
         EOV=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-        echo "\nresult<<$EOV" >> $GITHUB_OUTPUT
-        echo >(zugriff -y ${{ steps.preprocess.outputs.subcommand_composition }}) | tee -a $GITHUB_OUTPUT
-        echo "$EOV" >> $GITHUB_OUTPUT
+        printf "\nresult<<$EOV\n%s\n$EOV\n" "$(zugriff -y ${{ steps.preprocess.outputs.subcommand_composition }})" >> $GITHUB_OUTPUT
       env:
         X_DEPLOYMENT_TOKEN: ${{ inputs.deploymentToken }}
         X_DEPLOYMENT_API: ${{ inputs.environmentDeploymentApi }}
@@ -257,6 +255,12 @@ runs:
           let {
             RESULT, GITHUB_OUTPUT
           } = process.env;
+
+          console.log(RESULT);
+
+          if (!(RESULT || "").includes("All set!")) {
+            throw "A previous task must have thrown an error.";
+          }
 
           const regex = /(?:https?:\/\/)((?:\S*\.)+\S{2,})\s*/gm;
 
