@@ -264,7 +264,7 @@ runs:
 
           const regex = /(?:https?:\/\/)((?:\S*\.)+\S{2,})\s*/gm;
 
-          let domains = ((RESULT || "").match(regex) || []).join(",");
+          let domains = ((RESULT || "").match(regex) || []).map((domain) => domain.trim()).join(",");
 
           fs.appendFileSync(GITHUB_OUTPUT, "\n" + "domains=" + domains + "\n");
       env:
