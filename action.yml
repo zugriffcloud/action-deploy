@@ -95,10 +95,10 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Setup Node.js 20.x
-      uses: actions/setup-node@v4
+    - name: Setup Node.js 24
+      uses: actions/setup-node@v6
       with:
-        node-version: 20.x
+        node-version: 24
 
     - name: Install Dependencies
       shell: bash
@@ -107,7 +107,7 @@ runs:
         npm i -g zugriff@1
 
     - name: Compose Command
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       id: preprocess
       with:
         script: |
@@ -246,7 +246,7 @@ runs:
         X_WS_GENERAL_PURPOSE_API: ${{ inputs.environmentWsGeneralPurposeApi }}
 
     - name: Post-process
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       id: postprocess
       with:
         script: |
